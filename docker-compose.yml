@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  desksmartti:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: desksmartti_app
+    ports:
+      - "5000:5000"
+    volumes:
+      - desksmart_data:/app/prisma/data
+      - desksmart_uploads:/app/uploads
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - DATABASE_URL=file:./data/desksmart.db
+      - JWT_SECRET=desksmartti_super_secret_jwt_key_2026_desksmart
+    restart: unless-stopped
+
+volumes:
+  desksmart_data:
+  desksmart_uploads:
