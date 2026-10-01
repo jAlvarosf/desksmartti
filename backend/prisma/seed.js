@@ -24,11 +24,16 @@ async function main() {
     });
   }
 
+  const hardwareCat = await prisma.category.findUnique({ where: { name: 'Hardware & Equipamentos' } });
+  const softwareCat = await prisma.category.findUnique({ where: { name: 'Sistemas & Software' } });
+  const networkCat = await prisma.category.findUnique({ where: { name: 'Rede & Internet' } });
+  const accessCat = await prisma.category.findUnique({ where: { name: 'Acessos & Senhas' } });
+
   // Seed Default Admin User
   const adminPassword = await bcrypt.hash('admin123', 10);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@desksmartti.com' },
-    update: {},
+    update: { active: true },
     create: {
       fullName: 'Administrador TI',
       email: 'admin@desksmartti.com',
@@ -36,15 +41,16 @@ async function main() {
       phone: '(11) 99999-0000',
       department: 'Tecnologia da Informação',
       store: 'Matriz - Central',
-      role: 'ADMIN'
+      role: 'ADMIN',
+      active: true
     }
   });
 
   // Seed Demo User
   const userPassword = await bcrypt.hash('user123', 10);
-  const user = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { email: 'joao@empresa.com' },
-    update: {},
+    update: { active: true },
     create: {
       fullName: 'João Silva',
       email: 'joao@empresa.com',
@@ -52,11 +58,51 @@ async function main() {
       phone: '(11) 98888-1111',
       department: 'Vendas',
       store: 'Loja 01 - Centro',
-      role: 'USER'
+      role: 'USER',
+      active: true
     }
   });
 
-  console.log('Seeding complete. Admin created: admin@desksmartti.com / admin123');
+  // Seed Knowledge Base Articles (Base de Conhecimento)
+  const articles = [
+    {
+      title: 'O que fazer se o computador não ligar',
+      content: '1. Verifique se os cabos de energia do computador e do monitor estão firmemente encaixados na tomada.\n2. Verifique se a régua de energia ou estabilizador está ligado.\n3. Teste ligar outro equipamento na mesma tomada.\n4. Caso persista sem nenhum sinal de luz ou som, abra um chamado para a TI.',
+      categoryId: hardwareCat?.id,
+      authorId: admin.id,
+      tags: 'computador, energia, hardware, pc'
+    },
+    {
+      title: 'Como alterar ou redefinir sua senha corporativa',
+      content: '1. Acesse a tela de login do sistema ou no Windows pressione Ctrl + Alt + Del.\n2. Escolha "Alterar uma Senha".\n3. Digite sua senha atual e em seguida a nova senha (mínimo 8 caracteres, contendo números e letras maiúsculas).\n4. Se esqueceu a senha, abra um chamado solicitando o reset de senha.',
+      categoryId: accessCat?.id,
+      authorId: admin.id,
+      tags: 'senha, acesso, login, reset'
+    },
+    {
+      title: 'Problemas de lentidão no Wi-Fi ou na Internet',
+      content: '1. Desconecte e reconecte na rede Wi-Fi corporativa.\n2. Verifique se o cabo de rede está devidamente travado na entrada Ethernet do seu computador.\n3. Reinicie seu navegador de internet.\n4. Se todos os computadores da loja/setor estiverem sem conexão, abra um chamado de prioridade Alta.',
+      categoryId: networkCat?.id,
+      authorId: admin.id,
+      tags: 'internet, wifi, conexao, rede, lentidao'
+    },
+    {
+      title: 'Solução para impressora não imprimindo ou travada',
+      content: '1. Verifique se a impressora tem papel na bandeja e se não há luz vermelha piscando.\n2. Desligue e ligue a impressora novamente.\n3. No computador, abra "Impressoras e Escâneres", clique na impressora e cancele documentos pendentes no spooler.\n4. Teste imprimir uma página de teste.',
+      categoryId: hardwareCat?.id,
+      authorId: admin.id,
+      tags: 'impressora, papel, spooler, impressao'
+    }
+  ];
+
+  for (const art of articles) {
+    const existing = await prisma.knowledgeArticle.findFirst({ where: { title: art.title } });
+    if (!existing) {
+      await prisma.knowledgeArticle.create({ data: art });
+    }
+  }
+
+  console.log('Seeding complete. Base de Conhecimento e Admin criados!');
 }
 
 main()

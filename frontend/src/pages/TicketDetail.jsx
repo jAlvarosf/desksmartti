@@ -16,10 +16,15 @@ import {
   RefreshCw,
   AlertCircle,
   FileText,
-  Download
+  Download,
+  Edit3,
+  Save,
+  X,
+  Eye
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import ImageModal from '../components/ImageModal';
 
 export default function TicketDetail() {
   const { id } = useParams();
@@ -27,6 +32,7 @@ export default function TicketDetail() {
   const navigate = useNavigate();
 
   const [ticket, setTicket] = useState(null);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -35,13 +41,32 @@ export default function TicketDetail() {
   const [commentFiles, setCommentFiles] = useState([]);
   const [submittingComment, setSubmittingComment] = useState(false);
 
+  // Preview file modal state
+  const [previewFile, setPreviewFile] = useState(null);
+
   // Admin status/priority change state
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // Admin edit ticket modal/inline mode
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState('');
+  const [editPriority, setEditPriority] = useState('MEDIUM');
+  const [editDepartment, setEditDepartment] = useState('');
+  const [editStore, setEditStore] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const fetchTicketDetails = async () => {
     try {
       const res = await api.get(`/tickets/${id}`);
       setTicket(res.data.ticket);
+      setEditTitle(res.data.ticket.title);
+      setEditDescription(res.data.ticket.description);
+      setEditCategoryId(res.data.ticket.categoryId);
+      setEditPriority(res.data.ticket.priority);
+      setEditDepartment(res.data.ticket.department);
+      setEditStore(res.data.ticket.store);
     } catch (err) {
       setError(err.response?.data?.error || 'Erro ao carregar os detalhes do chamado.');
     } finally {
@@ -50,6 +75,7 @@ export default function TicketDetail() {
   };
 
   useEffect(() => {
+    api.get('/admin/categories').then(res => setCategories(res.data.categories)).catch(() => {});
     fetchTicketDetails();
   }, [id]);
 
@@ -74,6 +100,27 @@ export default function TicketDetail() {
       alert(err.response?.data?.error || 'Erro ao alterar prioridade.');
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    setSavingEdit(true);
+    try {
+      await api.put(`/tickets/${id}`, {
+        title: editTitle,
+        description: editDescription,
+        categoryId: editCategoryId,
+        priority: editPriority,
+        department: editDepartment,
+        store: editStore
+      });
+      setIsEditing(false);
+      await fetchTicketDetails();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Erro ao salvar alterações no chamado.');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -106,15 +153,15 @@ export default function TicketDetail() {
   const getStatusBadge = (statusKey) => {
     switch (statusKey) {
       case 'OPEN':
-        return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-sky-100 text-sky-800"><Clock className="w-3.5 h-3.5 mr-1.5" /> Aberto</span>;
+        return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"><Clock className="w-3.5 h-3.5 mr-1.5" /> Aberto</span>;
       case 'IN_PROGRESS':
-        return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800"><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Em Atendimento</span>;
+        return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Em Atendimento</span>;
       case 'WAITING_USER':
-        return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800"><AlertTriangle className="w-3.5 h-3.5 mr-1.5" /> Aguardando Usuário</span>;
+        return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"><AlertTriangle className="w-3.5 h-3.5 mr-1.5" /> Aguardando Usuário</span>;
       case 'RESOLVED':
-        return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800"><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Resolvido</span>;
+        return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Resolvido</span>;
       case 'CLOSED':
-        return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700"><XCircle className="w-3.5 h-3.5 mr-1.5" /> Fechado</span>;
+        return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"><XCircle className="w-3.5 h-3.5 mr-1.5" /> Fechado</span>;
       default:
         return statusKey;
     }
@@ -131,10 +178,10 @@ export default function TicketDetail() {
 
   if (error || !ticket) {
     return (
-      <div className="p-8 max-w-xl mx-auto text-center bg-white rounded-2xl border border-slate-200 shadow-xs">
+      <div className="p-8 max-w-xl mx-auto text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
         <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-        <h2 className="text-lg font-bold text-slate-800">Não foi possível carregar o chamado</h2>
-        <p className="text-sm text-slate-500 mt-1">{error || 'Chamado não encontrado ou sem permissão.'}</p>
+        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Não foi possível carregar o chamado</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{error || 'Chamado não encontrado ou sem permissão.'}</p>
         <Link to="/" className="inline-flex items-center mt-4 px-4 py-2 bg-sky-600 text-white rounded-xl text-sm font-semibold">
           <ArrowLeft className="w-4 h-4 mr-2" /> Voltar para Lista
         </Link>
@@ -144,23 +191,38 @@ export default function TicketDetail() {
 
   return (
     <div className="space-y-6">
+      {/* Image Preview Modal */}
+      {previewFile && (
+        <ImageModal file={previewFile} onClose={() => setPreviewFile(null)} />
+      )}
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <Link
           to="/"
-          className="inline-flex items-center text-sm font-semibold text-slate-600 hover:text-sky-600 transition-colors"
+          className="inline-flex items-center text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Voltar para Chamados
         </Link>
 
-        {/* Quick action for ticket owner to close/reopen */}
+        {/* Action Controls */}
         <div className="flex items-center gap-2">
+          {user?.role === 'ADMIN' && (
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className="px-3.5 py-1.5 bg-sky-50 dark:bg-sky-950/50 hover:bg-sky-100 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 font-semibold text-xs rounded-xl transition-colors border border-sky-200 dark:border-sky-800 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              {isEditing ? 'Cancelar Edição' : 'Editar Chamado (Admin)'}
+            </button>
+          )}
+
           {ticket.status !== 'CLOSED' ? (
             <button
               onClick={() => handleStatusChange('CLOSED')}
               disabled={updatingStatus}
-              className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-colors border border-slate-200"
+              className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs rounded-xl transition-colors border border-slate-200 dark:border-slate-700 cursor-pointer"
             >
               Concluir / Encerrar Chamado
             </button>
@@ -168,7 +230,7 @@ export default function TicketDetail() {
             <button
               onClick={() => handleStatusChange('OPEN')}
               disabled={updatingStatus}
-              className="px-3.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 font-semibold text-xs rounded-xl transition-colors border border-sky-200"
+              className="px-3.5 py-1.5 bg-sky-50 dark:bg-sky-950/50 hover:bg-sky-100 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 font-semibold text-xs rounded-xl transition-colors border border-sky-200 dark:border-sky-800 cursor-pointer"
             >
               Reabrir Chamado
             </button>
@@ -179,49 +241,149 @@ export default function TicketDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Left Content Column */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Main Ticket Card */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <div className="flex items-center space-x-2 mb-2 flex-wrap gap-y-1">
-                  <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded border border-sky-200">
-                    #{ticket.code}
+          {/* Main Ticket Card (Edit or View mode) */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-6 space-y-4">
+            {isEditing && user?.role === 'ADMIN' ? (
+              <form onSubmit={handleSaveEdit} className="space-y-4 border-2 border-dashed border-sky-300 dark:border-sky-800 p-4 rounded-xl bg-sky-50/30 dark:bg-sky-950/20">
+                <div className="flex items-center justify-between pb-2 border-b border-sky-200 dark:border-sky-900">
+                  <span className="text-xs font-bold text-sky-800 dark:text-sky-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Edit3 className="w-4 h-4" /> Editando Informações do Chamado
                   </span>
-                  {getStatusBadge(ticket.status)}
-                  <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded">
-                    {ticket.category?.name}
-                  </span>
+                  <button type="button" onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight">{ticket.title}</h1>
-              </div>
-            </div>
 
-            <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-line bg-slate-50/50 p-4 rounded-xl border border-slate-100">
-              {ticket.description}
-            </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Título / Assunto</label>
+                  <input
+                    type="text"
+                    required
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Categoria</label>
+                    <select
+                      value={editCategoryId}
+                      onChange={(e) => setEditCategoryId(e.target.value)}
+                      className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
+                    >
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Prioridade</label>
+                    <select
+                      value={editPriority}
+                      onChange={(e) => setEditPriority(e.target.value)}
+                      className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
+                    >
+                      <option value="LOW">Baixa</option>
+                      <option value="MEDIUM">Média</option>
+                      <option value="HIGH">Alta</option>
+                      <option value="URGENT">Urgente</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Descrição</label>
+                  <textarea
+                    rows={4}
+                    required
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white resize-y"
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-semibold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingEdit}
+                    className="px-5 py-2 bg-sky-600 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    Salvar Alterações
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                  <div>
+                    <div className="flex items-center space-x-2 mb-2 flex-wrap gap-y-1">
+                      <span className="font-mono text-xs font-bold text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-950 px-2.5 py-1 rounded border border-sky-200 dark:border-sky-900">
+                        #{ticket.code}
+                      </span>
+                      {getStatusBadge(ticket.status)}
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded">
+                        {ticket.category?.name}
+                      </span>
+                    </div>
+                    <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">{ticket.title}</h1>
+                  </div>
+                </div>
+
+                <div className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-line bg-slate-50/50 dark:bg-slate-800/40 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+                  {ticket.description}
+                </div>
+              </>
+            )}
 
             {/* Attachments Section */}
             {ticket.attachments && ticket.attachments.length > 0 && (
               <div className="pt-2">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Paperclip className="w-3.5 h-3.5 text-sky-600" />
+                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Paperclip className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
                   Anexos do Chamado ({ticket.attachments.length})
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {ticket.attachments.map((att) => (
-                    <a
+                    <div
                       key={att.id}
-                      href={att.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-3 bg-slate-50 hover:bg-sky-50/60 border border-slate-200 rounded-xl flex items-center justify-between text-xs transition-colors group"
+                      className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl flex items-center justify-between text-xs group"
                     >
                       <div className="flex items-center space-x-2 truncate">
-                        <FileText className="w-4 h-4 text-sky-600 shrink-0" />
-                        <span className="font-medium text-slate-700 group-hover:text-sky-700 truncate">{att.originalname}</span>
+                        <FileText className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
+                        <span className="font-medium text-slate-700 dark:text-slate-200 truncate">{att.originalname}</span>
                       </div>
-                      <Download className="w-4 h-4 text-slate-400 group-hover:text-sky-600 shrink-0 ml-2" />
-                    </a>
+
+                      <div className="flex items-center space-x-2 shrink-0">
+                        <button
+                          onClick={() => setPreviewFile(att)}
+                          className="p-1 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950 rounded cursor-pointer"
+                          title="Visualizar anexo em modal"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <a
+                          href={att.url}
+                          download={att.originalname}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 rounded"
+                          title="Baixar arquivo"
+                        >
+                          <Download className="w-4 h-4" />
+                        </a>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -229,16 +391,16 @@ export default function TicketDetail() {
           </div>
 
           {/* Timeline & Responses Section */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-6">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-sky-600" />
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-6 space-y-6">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-sky-600 dark:text-sky-400" />
               Histórico de Respostas e Interações
             </h3>
 
             {/* Comments List */}
-            <div className="space-y-4 divide-y divide-slate-100">
+            <div className="space-y-4 divide-y divide-slate-100 dark:divide-slate-800">
               {ticket.comments.length === 0 ? (
-                <p className="text-sm text-slate-400 italic text-center py-4">Nenhuma resposta registrada até o momento.</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 italic text-center py-4">Nenhuma resposta registrada até o momento.</p>
               ) : (
                 ticket.comments.map((comment) => {
                   const isAdminComment = comment.user?.role === 'ADMIN';
@@ -247,25 +409,25 @@ export default function TicketDetail() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                            isAdminComment ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
+                            isAdminComment ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
                           }`}>
                             {comment.user?.fullName?.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <span className="text-xs font-bold text-slate-800">{comment.user?.fullName}</span>
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{comment.user?.fullName}</span>
                             {isAdminComment && (
-                              <span className="ml-2 text-[10px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                              <span className="ml-2 text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 px-1.5 py-0.5 rounded">
                                 Equipe de TI
                               </span>
                             )}
                           </div>
                         </div>
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500">
                           {new Date(comment.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
 
-                      <p className="text-sm text-slate-700 pl-10 whitespace-pre-line leading-relaxed">
+                      <p className="text-sm text-slate-700 dark:text-slate-300 pl-10 whitespace-pre-line leading-relaxed">
                         {comment.content}
                       </p>
                     </div>
@@ -275,8 +437,8 @@ export default function TicketDetail() {
             </div>
 
             {/* Add New Response Form */}
-            <form onSubmit={handleCommentSubmit} className="pt-4 border-t border-slate-100 space-y-3">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+            <form onSubmit={handleCommentSubmit} className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Adicionar Resposta / Acompanhamento
               </label>
               <textarea
@@ -285,7 +447,7 @@ export default function TicketDetail() {
                 placeholder="Escreva sua mensagem ou atualização sobre este chamado..."
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white resize-y"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 resize-y"
               />
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -293,13 +455,13 @@ export default function TicketDetail() {
                   type="file"
                   multiple
                   onChange={(e) => setCommentFiles(Array.from(e.target.files))}
-                  className="text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
+                  className="text-xs text-slate-500 dark:text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-300 cursor-pointer"
                 />
 
                 <button
                   type="submit"
                   disabled={submittingComment}
-                  className="px-5 py-2 bg-sky-600 text-white font-semibold text-sm rounded-xl hover:bg-sky-700 shadow-md shadow-sky-600/20 disabled:opacity-50 transition-all flex items-center justify-center shrink-0"
+                  className="px-5 py-2 bg-sky-600 text-white font-semibold text-sm rounded-xl hover:bg-sky-700 shadow-md shadow-sky-600/20 disabled:opacity-50 transition-all flex items-center justify-center shrink-0 cursor-pointer"
                 >
                   {submittingComment ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -319,22 +481,22 @@ export default function TicketDetail() {
         <div className="space-y-6">
           {/* Admin Status Control Panel */}
           {user?.role === 'ADMIN' && (
-            <div className="bg-indigo-50/70 border border-indigo-200/80 rounded-2xl p-5 space-y-4">
-              <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
-                <Shield className="w-4 h-4 text-indigo-600" />
+            <div className="bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900 rounded-2xl p-5 space-y-4">
+              <h3 className="text-xs font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 Painel do Administrador
               </h3>
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-semibold text-indigo-950 mb-1">
+                  <label className="block text-xs font-semibold text-indigo-950 dark:text-indigo-200 mb-1">
                     Alterar Status do Chamado
                   </label>
                   <select
                     value={ticket.status}
                     onChange={(e) => handleStatusChange(e.target.value)}
                     disabled={updatingStatus}
-                    className="w-full p-2 bg-white border border-indigo-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full p-2 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
                   >
                     <option value="OPEN">Aberto</option>
                     <option value="IN_PROGRESS">Em Atendimento</option>
@@ -345,14 +507,14 @@ export default function TicketDetail() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-indigo-950 mb-1">
+                  <label className="block text-xs font-semibold text-indigo-950 dark:text-indigo-200 mb-1">
                     Alterar Nível de Prioridade
                   </label>
                   <select
                     value={ticket.priority}
                     onChange={(e) => handlePriorityChange(e.target.value)}
                     disabled={updatingStatus}
-                    className="w-full p-2 bg-white border border-indigo-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full p-2 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
                   >
                     <option value="LOW">Baixa</option>
                     <option value="MEDIUM">Média</option>
@@ -365,15 +527,15 @@ export default function TicketDetail() {
           )}
 
           {/* Ticket Information Details */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-4">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider pb-2 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-5 space-y-4">
+            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider pb-2 border-b border-slate-100 dark:border-slate-800">
               Informações Gerais
             </h3>
 
             <div className="space-y-3 text-xs">
               <div>
                 <span className="text-slate-400 block font-medium">Solicitante:</span>
-                <span className="font-semibold text-slate-800 flex items-center mt-0.5">
+                <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center mt-0.5">
                   <User className="w-3.5 h-3.5 mr-1 text-slate-400" />
                   {ticket.user?.fullName}
                 </span>
@@ -381,7 +543,7 @@ export default function TicketDetail() {
 
               <div>
                 <span className="text-slate-400 block font-medium">Setor / Departamento:</span>
-                <span className="font-semibold text-slate-800 flex items-center mt-0.5">
+                <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center mt-0.5">
                   <Building className="w-3.5 h-3.5 mr-1 text-slate-400" />
                   {ticket.department}
                 </span>
@@ -389,7 +551,7 @@ export default function TicketDetail() {
 
               <div>
                 <span className="text-slate-400 block font-medium">Loja / Unidade:</span>
-                <span className="font-semibold text-slate-800 flex items-center mt-0.5">
+                <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center mt-0.5">
                   <Building className="w-3.5 h-3.5 mr-1 text-slate-400" />
                   {ticket.store}
                 </span>
@@ -397,17 +559,17 @@ export default function TicketDetail() {
 
               <div>
                 <span className="text-slate-400 block font-medium">Telefone de Contato:</span>
-                <span className="font-semibold text-slate-800">{ticket.user?.phone}</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{ticket.user?.phone}</span>
               </div>
 
               <div>
                 <span className="text-slate-400 block font-medium">E-mail:</span>
-                <span className="font-semibold text-slate-800">{ticket.user?.email}</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{ticket.user?.email}</span>
               </div>
 
               <div>
                 <span className="text-slate-400 block font-medium">Data de Abertura:</span>
-                <span className="font-semibold text-slate-800">
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
                   {new Date(ticket.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
@@ -415,23 +577,23 @@ export default function TicketDetail() {
           </div>
 
           {/* Activity Log / History */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-3">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100">
-              <History className="w-3.5 h-3.5 text-sky-600" />
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-5 space-y-3">
+            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <History className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
               Histórico de Ações
             </h3>
 
             <div className="space-y-2.5 max-h-60 overflow-y-auto">
               {ticket.history?.map((hist) => (
-                <div key={hist.id} className="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                  <div className="flex items-center justify-between font-bold text-slate-700">
-                    <span>{hist.action === 'CREATED' ? 'Chamado Criado' : 'Status Alterado'}</span>
-                    <span className="text-[10px] text-slate-400">
+                <div key={hist.id} className="text-xs bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between font-bold text-slate-700 dark:text-slate-300">
+                    <span>{hist.action === 'CREATED' ? 'Chamado Criado' : hist.action === 'EDITED_BY_ADMIN' ? 'Editado por Admin' : 'Status Alterado'}</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">
                       {new Date(hist.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p className="text-slate-500 mt-1">
-                    {hist.newValue ? `Modificado para: ${hist.newValue}` : ''} por <strong>{hist.performedBy}</strong>
+                  <p className="text-slate-500 dark:text-slate-400 mt-1">
+                    {hist.newValue ? `${hist.newValue}` : ''} por <strong>{hist.performedBy}</strong>
                   </p>
                 </div>
               ))}

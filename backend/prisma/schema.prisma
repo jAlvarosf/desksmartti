@@ -17,6 +17,7 @@ model User {
   department    String
   store         String
   role          String         @default("USER") // USER, ADMIN
+  active        Boolean        @default(true)
   avatar        String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -25,6 +26,7 @@ model User {
   assignedTickets Ticket[]     @relation("AssignedTickets")
   comments      Comment[]
   notifications Notification[]
+  articles      KnowledgeArticle[]
 }
 
 model Category {
@@ -32,6 +34,7 @@ model Category {
   name        String   @unique
   description String?
   tickets     Ticket[]
+  articles    KnowledgeArticle[]
 }
 
 model Ticket {
@@ -49,7 +52,7 @@ model Ticket {
   assignedTo   User?       @relation("AssignedTickets", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   categoryId  String
-  category    Category     @relation(fields: [categoryId], references: [id])
+  category    Category     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
   department  String
   store       String
@@ -106,4 +109,18 @@ model Notification {
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model KnowledgeArticle {
+  id          String    @id @default(uuid())
+  title       String
+  content     String
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  views       Int       @default(0)
+  tags        String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }

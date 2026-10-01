@@ -31,7 +31,8 @@ router.post('/register', async (req, res) => {
         phone,
         department,
         store,
-        role: role === 'ADMIN' ? 'ADMIN' : 'USER'
+        role: role === 'ADMIN' ? 'ADMIN' : 'USER',
+        active: true
       },
       select: {
         id: true,
@@ -41,6 +42,7 @@ router.post('/register', async (req, res) => {
         department: true,
         store: true,
         role: true,
+        active: true,
         createdAt: true
       }
     });
@@ -72,6 +74,10 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'E-mail ou senha incorretos.' });
     }
 
+    if (!user.active) {
+      return res.status(403).json({ error: 'Sua conta de usuário está desativada. Entre em contato com a TI.' });
+    }
+
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       return res.status(400).json({ error: 'E-mail ou senha incorretos.' });
@@ -87,6 +93,7 @@ router.post('/login', async (req, res) => {
       department: user.department,
       store: user.store,
       role: user.role,
+      active: user.active,
       avatar: user.avatar
     };
 
@@ -127,6 +134,7 @@ router.put('/me', authenticateToken, async (req, res) => {
         department: true,
         store: true,
         role: true,
+        active: true,
         avatar: true
       }
     });

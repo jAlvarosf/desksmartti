@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
@@ -58,7 +59,6 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
       })
     ]);
 
-    // Map categories names
     const categories = await prisma.category.findMany();
     const categoryMap = categories.reduce((acc, cat) => {
       acc[cat.id] = cat.name;
@@ -115,6 +115,7 @@ router.get('/users', authenticateToken, requireAdmin, async (req, res) => {
         department: true,
         store: true,
         role: true,
+        active: true,
         createdAt: true,
         _count: { select: { tickets: true } }
       }
@@ -127,24 +128,77 @@ router.get('/users', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
-// Update User Role/Department/Store (Admin only)
-router.patch('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+// Create User (Admin)
+router.post('/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
-    const { role, department, store } = req.body;
+    const { fullName, email, password, phone, department, store, role, active } = req.body;
 
-    const user = await prisma.user.update({
-      where: { id },
+    if (!fullName || !email || !password || !phone) {
+      return res.status(400).json({ error: 'Nome, e-mail, telefone e senha são obrigatórios.' });
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Este e-mail já está cadastrado.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = await prisma.user.create({
       data: {
-        role: role || undefined,
-        department: department || undefined,
-        store: store || undefined
+        fullName,
+        email,
+        password: hashedPassword,
+        phone,
+        department: department || 'Geral',
+        store: store || 'Matriz',
+        role: role === 'ADMIN' ? 'ADMIN' : 'USER',
+        active: active !== undefined ? Boolean(active) : true
       },
       select: {
         id: true,
         fullName: true,
         email: true,
+        phone: true,
+        department: true,
+        store: true,
         role: true,
+        active: true
+      }
+    });
+
+    res.status(201).json({ message: 'Usuário criado com sucesso!', user: newUser });
+  } catch (error) {
+    console.error('Create user error:', error);
+    res.status(500).json({ error: 'Erro ao criar usuário.' });
+  }
+});
+
+// Edit / Deactivate User (Admin)
+router.patch('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fullName, email, phone, role, department, store, active, password } = req.body;
+
+    const dataToUpdate = {};
+    if (fullName) dataToUpdate.fullName = fullName;
+    if (email) dataToUpdate.email = email;
+    if (phone) dataToUpdate.phone = phone;
+    if (role) dataToUpdate.role = role;
+    if (department) dataToUpdate.department = department;
+    if (store) dataToUpdate.store = store;
+    if (active !== undefined) dataToUpdate.active = Boolean(active);
+    if (password) dataToUpdate.password = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.update({
+      where: { id },
+      data: dataToUpdate,
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        active: true,
         department: true,
         store: true
       }
@@ -157,7 +211,7 @@ router.patch('/users/:id', authenticateToken, requireAdmin, async (req, res) => 
   }
 });
 
-// Category Management (List, Create, Delete)
+// Category Management (List, Create, Update, Delete)
 router.get('/categories', authenticateToken, async (req, res) => {
   try {
     const categories = await prisma.category.findMany({
@@ -183,6 +237,95 @@ router.post('/categories', authenticateToken, requireAdmin, async (req, res) => 
     res.status(201).json({ message: 'Categoria criada com sucesso.', category });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao criar categoria ou nome já existente.' });
+  }
+});
+
+router.put('/categories/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    const category = await prisma.category.update({
+      where: { id },
+      data: { name, description }
+    });
+
+    res.json({ message: 'Categoria atualizada com sucesso.', category });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao atualizar categoria.' });
+  }
+});
+
+router.delete('/categories/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if category has tickets
+    const ticketCount = await prisma.ticket.count({ where: { categoryId: id } });
+    if (ticketCount > 0) {
+      return res.status(400).json({ error: `Não é possível excluir esta categoria pois ela possui ${ticketCount} chamado(s) vinculado(s).` });
+    }
+
+    await prisma.category.delete({ where: { id } });
+    res.json({ message: 'Categoria excluída com sucesso.' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao excluir categoria.' });
+  }
+});
+
+// Knowledge Base Routes (Base de Conhecimento)
+router.get('/knowledge', authenticateToken, async (req, res) => {
+  try {
+    const { search, categoryId } = req.query;
+    const where = {};
+    if (categoryId) where.categoryId = categoryId;
+    if (search) {
+      where.OR = [
+        { title: { contains: search } },
+        { content: { contains: search } },
+        { tags: { contains: search } }
+      ];
+    }
+
+    const articles = await prisma.knowledgeArticle.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        category: true,
+        author: { select: { fullName: true } }
+      }
+    });
+
+    res.json({ articles });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar artigos da base de conhecimento.' });
+  }
+});
+
+router.post('/knowledge', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { title, content, categoryId, tags } = req.body;
+    if (!title || !content) {
+      return res.status(400).json({ error: 'Título e conteúdo são obrigatórios.' });
+    }
+
+    const article = await prisma.knowledgeArticle.create({
+      data: {
+        title,
+        content,
+        categoryId: categoryId || null,
+        tags: tags || '',
+        authorId: req.user.id
+      },
+      include: {
+        category: true,
+        author: { select: { fullName: true } }
+      }
+    });
+
+    res.status(201).json({ message: 'Artigo publicado com sucesso!', article });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao salvar artigo.' });
   }
 });
 
