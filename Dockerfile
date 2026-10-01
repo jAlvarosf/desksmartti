@@ -10,12 +10,17 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
-# Install dependencies for backend
+# Install OpenSSL and libc dependencies required by Prisma engine on Alpine Linux
+RUN apk add --no-cache openssl libc6-compat
+
+# Copy backend dependencies definition
 COPY backend/package*.json ./
 RUN npm ci --only=production
 
-# Copy Prisma schema and generate client
+# Copy Prisma schema
 COPY backend/prisma ./prisma
+
+# Generate Prisma Client specifically inside Alpine Linux environment
 RUN npx prisma generate
 
 # Copy backend source code
