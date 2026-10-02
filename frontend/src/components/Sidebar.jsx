@@ -2,10 +2,10 @@ import React from 'react';
 import {
   LayoutDashboard,
   Ticket,
-  PlusCircle,
   Users,
   FolderPlus,
   BookOpen,
+  Building2,
   Headphones,
   X
 } from 'lucide-react';
@@ -26,6 +26,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const adminNav = [
     { name: 'Painel Geral (Dashboard)', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Todos os Chamados', path: '/', icon: Ticket },
+    { name: 'Empresas & Unidades', path: '/admin/companies', icon: Building2 },
     { name: 'Gerenciar Usuários', path: '/admin/users', icon: Users },
     { name: 'Categorias de TI', path: '/admin/categories', icon: FolderPlus },
     { name: 'Base de Conhecimento', path: '/knowledge', icon: BookOpen },

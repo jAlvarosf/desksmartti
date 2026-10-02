@@ -47,7 +47,7 @@ async function generateTicketCode() {
 // Create Ticket
 router.post('/', authenticateToken, upload.array('attachments', 5), async (req, res) => {
   try {
-    const { title, description, categoryId, priority, department, store, requesterFullName, requesterEmail, requesterPhone } = req.body;
+    const { title, description, categoryId, priority, department, store, companyId, requesterFullName, requesterEmail, requesterPhone } = req.body;
 
     if (!title || !description || !categoryId) {
       return res.status(400).json({ error: 'Título, descrição e categoria são obrigatórios.' });
@@ -60,7 +60,6 @@ router.post('/', authenticateToken, upload.array('attachments', 5), async (req, 
 
     let targetUserId = req.user.id;
 
-    // If Admin provides custom requester email that is different from their own, check or create that user
     if (req.user.role === 'ADMIN' && requesterEmail && requesterEmail.trim() !== req.user.email) {
       let existingUser = await prisma.user.findUnique({ where: { email: requesterEmail.trim() } });
       if (!existingUser) {
@@ -72,6 +71,7 @@ router.post('/', authenticateToken, upload.array('attachments', 5), async (req, 
             phone: requesterPhone || '(00) 00000-0000',
             department: department || 'Geral',
             store: store || 'Matriz',
+            companyId: companyId || null,
             role: 'USER',
             active: true
           }
@@ -91,18 +91,19 @@ router.post('/', authenticateToken, upload.array('attachments', 5), async (req, 
         priority: priority || 'MEDIUM',
         department: department || req.user.department,
         store: store || req.user.store,
+        companyId: companyId || req.user.companyId || null,
         userId: targetUserId,
         status: 'OPEN'
       },
       include: {
         category: true,
+        company: true,
         user: {
           select: { id: true, fullName: true, email: true, department: true, store: true, phone: true }
         }
       }
     });
 
-    // Save attachments if any
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
         await prisma.attachment.create({
@@ -118,7 +119,6 @@ router.post('/', authenticateToken, upload.array('attachments', 5), async (req, 
       }
     }
 
-    // Log history
     await prisma.ticketHistory.create({
       data: {
         ticketId: ticket.id,
@@ -128,7 +128,6 @@ router.post('/', authenticateToken, upload.array('attachments', 5), async (req, 
       }
     });
 
-    // Notify admins about new ticket
     const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
     for (const admin of admins) {
       await prisma.notification.create({
@@ -141,7 +140,6 @@ router.post('/', authenticateToken, upload.array('attachments', 5), async (req, 
       });
     }
 
-    // Notify requester confirmation
     await prisma.notification.create({
       data: {
         userId: targetUserId,
@@ -155,6 +153,7 @@ router.post('/', authenticateToken, upload.array('attachments', 5), async (req, 
       where: { id: ticket.id },
       include: {
         category: true,
+        company: true,
         user: { select: { id: true, fullName: true, email: true, phone: true, department: true, store: true } },
         attachments: true
       }
@@ -167,14 +166,58 @@ router.post('/', authenticateToken, upload.array('attachments', 5), async (req, 
   }
 });
 
+// Rate / Evaluate Ticket (1 to 5 stars + feedback comment)
+router.patch('/:id/rating', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rating, feedback } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Avaliação deve ser entre 1 e 5 estrelas.' });
+    }
+
+    const ticket = await prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ error: 'Chamado não encontrado.' });
+    }
+
+    // Only ticket creator or admin can rate
+    if (ticket.userId !== req.user.id && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Apenas o solicitante do chamado pode avaliá-lo.' });
+    }
+
+    const updatedTicket = await prisma.ticket.update({
+      where: { id },
+      data: {
+        rating: Number(rating),
+        feedback: feedback ? feedback.trim() : null,
+        ratedAt: new Date()
+      }
+    });
+
+    await prisma.ticketHistory.create({
+      data: {
+        ticketId: id,
+        action: 'RATED',
+        newValue: `Avaliado com ${rating} estrelas`,
+        performedBy: req.user.fullName
+      }
+    });
+
+    res.json({ message: 'Obrigado por avaliar nosso atendimento!', ticket: updatedTicket });
+  } catch (error) {
+    console.error('Rating ticket error:', error);
+    res.status(500).json({ error: 'Erro ao registrar avaliação.' });
+  }
+});
+
 // List Tickets
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { status, priority, categoryId, store, search, startDate, endDate } = req.query;
+    const { status, priority, categoryId, store, companyId, search, startDate, endDate } = req.query;
 
     const where = {};
 
-    // RBAC: Normal users only see their own tickets
     if (req.user.role !== 'ADMIN') {
       where.userId = req.user.id;
     }
@@ -182,6 +225,7 @@ router.get('/', authenticateToken, async (req, res) => {
     if (status) where.status = status;
     if (priority) where.priority = priority;
     if (categoryId) where.categoryId = categoryId;
+    if (companyId) where.companyId = companyId;
     if (store) where.store = store;
 
     if (search) {
@@ -207,6 +251,7 @@ router.get('/', authenticateToken, async (req, res) => {
       orderBy: { createdAt: 'desc' },
       include: {
         category: true,
+        company: true,
         user: {
           select: { id: true, fullName: true, email: true, phone: true, department: true, store: true }
         },
@@ -236,6 +281,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
       where: { id },
       include: {
         category: true,
+        company: true,
         user: {
           select: { id: true, fullName: true, email: true, phone: true, department: true, store: true, role: true }
         },
@@ -259,7 +305,6 @@ router.get('/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Chamado não encontrado.' });
     }
 
-    // RBAC: Ensure non-admin cannot access someone else's ticket
     if (req.user.role !== 'ADMIN' && ticket.userId !== req.user.id) {
       return res.status(403).json({ error: 'Acesso negado. Você não tem permissão para visualizar este chamado.' });
     }
@@ -275,7 +320,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, categoryId, priority, department, store } = req.body;
+    const { title, description, categoryId, priority, department, store, companyId } = req.body;
 
     const ticket = await prisma.ticket.findUnique({ where: { id } });
     if (!ticket) {
@@ -290,10 +335,12 @@ router.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
         categoryId: categoryId || ticket.categoryId,
         priority: priority || ticket.priority,
         department: department || ticket.department,
-        store: store || ticket.store
+        store: store || ticket.store,
+        companyId: companyId || ticket.companyId
       },
       include: {
         category: true,
+        company: true,
         user: { select: { id: true, fullName: true, email: true, phone: true, department: true, store: true } },
         attachments: true
       }
@@ -326,12 +373,10 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Chamado não encontrado.' });
     }
 
-    // RBAC logic
     if (req.user.role !== 'ADMIN' && ticket.userId !== req.user.id) {
       return res.status(403).json({ error: 'Acesso negado.' });
     }
 
-    // Regular users can only cancel/close or reopen their tickets
     if (req.user.role !== 'ADMIN' && status && !['CLOSED', 'OPEN'].includes(status)) {
       return res.status(403).json({ error: 'Usuários apenas podem fechar ou reabrir seus próprios chamados.' });
     }
@@ -351,7 +396,6 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
       }
     });
 
-    // Record history if status changed
     if (status && status !== ticket.status) {
       await prisma.ticketHistory.create({
         data: {
@@ -363,7 +407,6 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
         }
       });
 
-      // Notify ticket owner
       if (ticket.userId !== req.user.id) {
         const statusLabels = {
           OPEN: 'Aberto',

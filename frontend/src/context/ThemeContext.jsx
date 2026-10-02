@@ -13,14 +13,18 @@ export function ThemeProvider({ children }) {
     const applyTheme = (currentTheme) => {
       if (currentTheme === 'dark') {
         root.classList.add('dark');
+        document.body.classList.add('dark', 'bg-slate-950');
       } else if (currentTheme === 'light') {
         root.classList.remove('dark');
+        document.body.classList.remove('dark', 'bg-slate-950');
       } else {
-        // System preference
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        const isSystemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (isSystemDark) {
           root.classList.add('dark');
+          document.body.classList.add('dark', 'bg-slate-950');
         } else {
           root.classList.remove('dark');
+          document.body.classList.remove('dark', 'bg-slate-950');
         }
       }
     };
@@ -28,13 +32,13 @@ export function ThemeProvider({ children }) {
     applyTheme(theme);
     localStorage.setItem('desk_theme', theme);
 
-    // Listener for system preference changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleSystemChange = () => {
       if (theme === 'system') {
         applyTheme('system');
       }
     };
+
     mediaQuery.addEventListener('change', handleSystemChange);
     return () => mediaQuery.removeEventListener('change', handleSystemChange);
   }, [theme]);

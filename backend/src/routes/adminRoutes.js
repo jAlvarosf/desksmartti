@@ -6,14 +6,15 @@ const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Get Admin Dashboard Overview Statistics
+// Get Admin Dashboard Overview Statistics + Rating Analytics
 router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { startDate, endDate, store, categoryId } = req.query;
+    const { startDate, endDate, store, categoryId, companyId } = req.query;
 
     const where = {};
     if (store) where.store = store;
     if (categoryId) where.categoryId = categoryId;
+    if (companyId) where.companyId = companyId;
 
     if (startDate || endDate) {
       where.createdAt = {};
@@ -34,7 +35,8 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
       closed,
       byPriorityRaw,
       byCategoryRaw,
-      byStoreRaw
+      byStoreRaw,
+      ratingsRaw
     ] = await Promise.all([
       prisma.ticket.count({ where }),
       prisma.ticket.count({ where: { ...where, status: 'OPEN' } }),
@@ -56,6 +58,20 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
         by: ['store'],
         where,
         _count: { id: true }
+      }),
+      prisma.ticket.findMany({
+        where: {
+          ...where,
+          rating: { not: null }
+        },
+        select: {
+          rating: true,
+          feedback: true,
+          code: true,
+          title: true,
+          ratedAt: true,
+          user: { select: { fullName: true } }
+        }
       })
     ]);
 
@@ -80,7 +96,25 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
       count: item._count.id
     }));
 
+    // CSAT / Rating Calculations
+    const totalRated = ratingsRaw.length;
+    const ratingSum = ratingsRaw.reduce((acc, r) => acc + (r.rating || 0), 0);
+    const averageRating = totalRated > 0 ? (ratingSum / totalRated).toFixed(1) : 0;
+
+    // CSAT % (percentage of 4 or 5 star ratings)
+    const positiveRatings = ratingsRaw.filter(r => r.rating >= 4).length;
+    const csatPercent = totalRated > 0 ? Math.round((positiveRatings / totalRated) * 100) : 0;
+
+    const ratingDistribution = {
+      5: ratingsRaw.filter(r => r.rating === 5).length,
+      4: ratingsRaw.filter(r => r.rating === 4).length,
+      3: ratingsRaw.filter(r => r.rating === 3).length,
+      2: ratingsRaw.filter(r => r.rating === 2).length,
+      1: ratingsRaw.filter(r => r.rating === 1).length
+    };
+
     const totalUsers = await prisma.user.count();
+    const totalCompanies = await prisma.company.count();
 
     res.json({
       summary: {
@@ -90,7 +124,15 @@ router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
         waitingUser,
         resolved,
         closed,
-        totalUsers
+        totalUsers,
+        totalCompanies
+      },
+      ratings: {
+        totalRated,
+        averageRating,
+        csatPercent,
+        distribution: ratingDistribution,
+        recentFeedback: ratingsRaw.slice(-5).reverse()
       },
       byPriority,
       byCategory,
@@ -114,6 +156,8 @@ router.get('/users', authenticateToken, requireAdmin, async (req, res) => {
         phone: true,
         department: true,
         store: true,
+        companyId: true,
+        company: { select: { id: true, name: true } },
         role: true,
         active: true,
         createdAt: true,
@@ -131,7 +175,7 @@ router.get('/users', authenticateToken, requireAdmin, async (req, res) => {
 // Create User (Admin)
 router.post('/users', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { fullName, email, password, phone, department, store, role, active } = req.body;
+    const { fullName, email, password, phone, department, store, companyId, role, active } = req.body;
 
     if (!fullName || !email || !password || !phone) {
       return res.status(400).json({ error: 'Nome, e-mail, telefone e senha são obrigatórios.' });
@@ -152,6 +196,7 @@ router.post('/users', authenticateToken, requireAdmin, async (req, res) => {
         phone,
         department: department || 'Geral',
         store: store || 'Matriz',
+        companyId: companyId || null,
         role: role === 'ADMIN' ? 'ADMIN' : 'USER',
         active: active !== undefined ? Boolean(active) : true
       },
@@ -178,7 +223,7 @@ router.post('/users', authenticateToken, requireAdmin, async (req, res) => {
 router.patch('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { fullName, email, phone, role, department, store, active, password } = req.body;
+    const { fullName, email, phone, role, department, store, companyId, active, password } = req.body;
 
     const dataToUpdate = {};
     if (fullName) dataToUpdate.fullName = fullName;
@@ -187,6 +232,7 @@ router.patch('/users/:id', authenticateToken, requireAdmin, async (req, res) => 
     if (role) dataToUpdate.role = role;
     if (department) dataToUpdate.department = department;
     if (store) dataToUpdate.store = store;
+    if (companyId !== undefined) dataToUpdate.companyId = companyId;
     if (active !== undefined) dataToUpdate.active = Boolean(active);
     if (password) dataToUpdate.password = await bcrypt.hash(password, 10);
 
@@ -211,7 +257,7 @@ router.patch('/users/:id', authenticateToken, requireAdmin, async (req, res) => 
   }
 });
 
-// Category Management (List, Create, Update, Delete)
+// Category Management
 router.get('/categories', authenticateToken, async (req, res) => {
   try {
     const categories = await prisma.category.findMany({
@@ -260,7 +306,6 @@ router.delete('/categories/:id', authenticateToken, requireAdmin, async (req, re
   try {
     const { id } = req.params;
 
-    // Check if category has tickets
     const ticketCount = await prisma.ticket.count({ where: { categoryId: id } });
     if (ticketCount > 0) {
       return res.status(400).json({ error: `Não é possível excluir esta categoria pois ela possui ${ticketCount} chamado(s) vinculado(s).` });
@@ -273,7 +318,7 @@ router.delete('/categories/:id', authenticateToken, requireAdmin, async (req, re
   }
 });
 
-// Knowledge Base Routes (Base de Conhecimento)
+// Knowledge Base Routes
 router.get('/knowledge', authenticateToken, async (req, res) => {
   try {
     const { search, categoryId } = req.query;

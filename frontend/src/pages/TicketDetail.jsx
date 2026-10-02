@@ -20,11 +20,13 @@ import {
   Edit3,
   Save,
   X,
-  Eye
+  Eye,
+  Star
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ImageModal from '../components/ImageModal';
+import TicketRatingModal from '../components/TicketRatingModal';
 
 export default function TicketDetail() {
   const { id } = useParams();
@@ -390,6 +392,16 @@ export default function TicketDetail() {
             )}
           </div>
 
+          {/* Rating Section for Ticket Owner when Resolved/Closed */}
+          {(['RESOLVED', 'CLOSED'].includes(ticket.status)) && (ticket.userId === user?.id || user?.role === 'ADMIN') && (
+            <TicketRatingModal
+              ticketId={ticket.id}
+              existingRating={ticket.rating}
+              existingFeedback={ticket.feedback}
+              onRated={fetchTicketDetails}
+            />
+          )}
+
           {/* Timeline & Responses Section */}
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-6 space-y-6">
             <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -550,10 +562,10 @@ export default function TicketDetail() {
               </div>
 
               <div>
-                <span className="text-slate-400 block font-medium">Loja / Unidade:</span>
+                <span className="text-slate-400 block font-medium">Empresa / Unidade:</span>
                 <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center mt-0.5">
                   <Building className="w-3.5 h-3.5 mr-1 text-slate-400" />
-                  {ticket.store}
+                  {ticket.company?.name || ticket.store}
                 </span>
               </div>
 
@@ -587,7 +599,7 @@ export default function TicketDetail() {
               {ticket.history?.map((hist) => (
                 <div key={hist.id} className="text-xs bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
                   <div className="flex items-center justify-between font-bold text-slate-700 dark:text-slate-300">
-                    <span>{hist.action === 'CREATED' ? 'Chamado Criado' : hist.action === 'EDITED_BY_ADMIN' ? 'Editado por Admin' : 'Status Alterado'}</span>
+                    <span>{hist.action === 'CREATED' ? 'Chamado Criado' : hist.action === 'RATED' ? 'Avaliado' : hist.action === 'EDITED_BY_ADMIN' ? 'Editado por Admin' : 'Status Alterado'}</span>
                     <span className="text-[10px] text-slate-400 dark:text-slate-500">
                       {new Date(hist.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>

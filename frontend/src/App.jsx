@@ -12,6 +12,7 @@ import TicketList from './pages/TicketList';
 import TicketCreate from './pages/TicketCreate';
 import TicketDetail from './pages/TicketDetail';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminCompanies from './pages/AdminCompanies';
 import AdminUsers from './pages/AdminUsers';
 import AdminCategories from './pages/AdminCategories';
 import UserProfile from './pages/UserProfile';
@@ -55,12 +56,12 @@ function MainLayout() {
             <Route path="/knowledge" element={<KnowledgeBase />} />
             <Route path="/profile" element={<UserProfile />} />
             <Route path="/admin/dashboard" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/companies" element={<ProtectedRoute adminOnly><AdminCompanies /></ProtectedRoute>} />
             <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsers /></ProtectedRoute>} />
             <Route path="/admin/categories" element={<ProtectedRoute adminOnly><AdminCategories /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
-        {/* Draggable Floating Action Button for New Ticket */}
         <FloatingTicketButton />
       </div>
     </div>

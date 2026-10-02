@@ -8,6 +8,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Company {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  code        String?  @unique
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  tickets     Ticket[]
+}
+
 model User {
   id            String         @id @default(uuid())
   fullName      String
@@ -15,7 +27,9 @@ model User {
   password      String
   phone         String
   department    String
-  store         String
+  store         String         // Name or code of the unit/company
+  companyId     String?
+  company       Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
   role          String         @default("USER") // USER, ADMIN
   active        Boolean        @default(true)
   avatar        String?
@@ -54,8 +68,16 @@ model Ticket {
   categoryId  String
   category    Category     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
+  companyId   String?
+  company     Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
   department  String
   store       String
+
+  // Rating / CSAT feedback (1 to 5 stars)
+  rating      Int?
+  feedback    String?
+  ratedAt     DateTime?
 
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt

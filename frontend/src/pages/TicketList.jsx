@@ -14,8 +14,8 @@ import {
   RefreshCw,
   LayoutGrid,
   ListFilter,
-  Paperclip,
-  Eye
+  Eye,
+  X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
@@ -27,25 +27,35 @@ export default function TicketList() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // View mode: 'list' or 'kanban'
-  const [viewMode, setViewMode] = useState('list');
+  // Default view mode set to 'kanban' as requested
+  const [viewMode, setViewMode] = useState('kanban');
 
   // Preview file modal state
   const [previewFile, setPreviewFile] = useState(null);
+
+  // Search & Filter UI Expand states
+  const [showSearchInput, setShowSearchInput] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [priority, setPriority] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [companyId, setCompanyId] = useState('');
   const [store, setStore] = useState('');
 
-  const fetchCategories = async () => {
+  const fetchCategoriesAndCompanies = async () => {
     try {
-      const res = await api.get('/admin/categories');
-      setCategories(res.data.categories);
+      const [catRes, compRes] = await Promise.all([
+        api.get('/admin/categories'),
+        api.get('/companies/companies')
+      ]);
+      setCategories(catRes.data.categories);
+      setCompanies(compRes.data.companies);
     } catch (err) {
       console.error(err);
     }
@@ -59,6 +69,7 @@ export default function TicketList() {
       if (status) params.status = status;
       if (priority) params.priority = priority;
       if (categoryId) params.categoryId = categoryId;
+      if (companyId) params.companyId = companyId;
       if (store) params.store = store;
 
       const res = await api.get('/tickets', { params });
@@ -71,12 +82,12 @@ export default function TicketList() {
   };
 
   useEffect(() => {
-    fetchCategories();
+    fetchCategoriesAndCompanies();
   }, []);
 
   useEffect(() => {
     fetchTickets();
-  }, [status, priority, categoryId, store]);
+  }, [status, priority, categoryId, companyId, store]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -95,15 +106,15 @@ export default function TicketList() {
   const getStatusBadge = (statusKey) => {
     switch (statusKey) {
       case 'OPEN':
-        return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"><Clock className="w-3.5 h-3.5 mr-1" /> Aberto</span>;
+        return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"><Clock className="w-3.5 h-3.5 mr-1" /> Criado / Aberto</span>;
       case 'IN_PROGRESS':
         return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"><RefreshCw className="w-3.5 h-3.5 mr-1 animate-spin" /> Em Atendimento</span>;
       case 'WAITING_USER':
-        return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"><AlertTriangle className="w-3.5 h-3.5 mr-1" /> Aguardando Usuário</span>;
+        return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300"><AlertTriangle className="w-3.5 h-3.5 mr-1" /> Aguardando Retorno</span>;
       case 'RESOLVED':
         return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"><CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Resolvido</span>;
       case 'CLOSED':
-        return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"><XCircle className="w-3.5 h-3.5 mr-1" /> Fechado</span>;
+        return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"><XCircle className="w-3.5 h-3.5 mr-1" /> Finalizado</span>;
       default:
         return statusKey;
     }
@@ -139,26 +150,40 @@ export default function TicketList() {
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {user?.role === 'ADMIN'
-              ? 'Acompanhe, arraste pelo Kanban e atribua aos chamados da empresa.'
-              : 'Consulte o andamento das suas solicitações no formato Lista ou Kanban.'}
+              ? 'Arraste os cards pelas etapas do Kanban para atualizar o atendimento.'
+              : 'Acompanhe suas solicitações na visão Kanban ou em Lista.'}
           </p>
         </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2.5 flex-wrap">
+          {/* Search Icon button toggle */}
+          <button
+            onClick={() => setShowSearchInput(!showSearchInput)}
+            className={`p-2.5 rounded-xl border text-sm font-semibold transition-colors cursor-pointer ${
+              showSearchInput || search
+                ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+            }`}
+            title="Pesquisar chamados"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+
+          {/* Filter Modal Toggle Button */}
+          <button
+            onClick={() => setShowFilterModal(true)}
+            className={`p-2.5 rounded-xl border text-sm font-semibold transition-colors flex items-center space-x-1.5 cursor-pointer ${
+              status || priority || categoryId || companyId
+                ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            <span className="hidden sm:inline">Filtros</span>
+          </button>
+
           {/* View Mode Toggle */}
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                viewMode === 'list'
-                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <ListFilter className="w-4 h-4" />
-              <span>Lista</span>
-            </button>
-
             <button
               onClick={() => setViewMode('kanban')}
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -170,6 +195,18 @@ export default function TicketList() {
               <LayoutGrid className="w-4 h-4" />
               <span>Kanban</span>
             </button>
+
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <ListFilter className="w-4 h-4" />
+              <span>Lista</span>
+            </button>
           </div>
 
           <Link
@@ -177,19 +214,20 @@ export default function TicketList() {
             className="inline-flex items-center justify-center px-4 py-2.5 bg-sky-600 text-white font-semibold text-sm rounded-xl hover:bg-sky-700 shadow-md shadow-sky-600/20 transition-all shrink-0"
           >
             <PlusCircle className="w-5 h-5 mr-2" />
-            Abrir Novo Chamado
+            Novo Chamado
           </Link>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3">
-        <form onSubmit={handleSearchSubmit} className="flex gap-2">
+      {/* Expandable Search Input Bar */}
+      {showSearchInput && (
+        <form onSubmit={handleSearchSubmit} className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex gap-2 animate-in fade-in duration-150">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
             <input
               type="text"
-              placeholder="Buscar por código (TCK-...), assunto ou conteúdo..."
+              autoFocus
+              placeholder="Digite o código (TCK-...), assunto ou palavras do problema..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-white"
@@ -197,70 +235,21 @@ export default function TicketList() {
           </div>
           <button
             type="submit"
-            className="px-4 py-2 bg-slate-800 dark:bg-slate-700 text-white font-medium text-sm rounded-xl hover:bg-slate-900 dark:hover:bg-slate-600 transition-colors"
+            className="px-4 py-2 bg-sky-600 text-white font-semibold text-sm rounded-xl hover:bg-sky-700 transition-colors"
           >
             Buscar
           </button>
+          {search && (
+            <button
+              type="button"
+              onClick={() => { setSearch(''); fetchTickets(); }}
+              className="px-3 py-2 border border-slate-200 dark:border-slate-700 text-slate-500 rounded-xl text-xs font-semibold"
+            >
+              Limpar
+            </button>
+          )}
         </form>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Status</label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            >
-              <option value="">Todos os Status</option>
-              <option value="OPEN">Aberto</option>
-              <option value="IN_PROGRESS">Em Atendimento</option>
-              <option value="WAITING_USER">Aguardando Usuário</option>
-              <option value="RESOLVED">Resolvido</option>
-              <option value="CLOSED">Fechado</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Prioridade</label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            >
-              <option value="">Todas Prioridades</option>
-              <option value="LOW">Baixa</option>
-              <option value="MEDIUM">Média</option>
-              <option value="HIGH">Alta</option>
-              <option value="URGENT">Urgente</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Categoria</label>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            >
-              <option value="">Todas Categorias</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Loja / Unidade</label>
-            <input
-              type="text"
-              placeholder="Ex: Matriz, Loja 01"
-              value={store}
-              onChange={(e) => setStore(e.target.value)}
-              className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            />
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* View Content (Kanban vs List) */}
       {loading ? (
@@ -330,7 +319,7 @@ export default function TicketList() {
                         </span>
                         <span className="flex items-center">
                           <Building className="w-3.5 h-3.5 mr-1" />
-                          {ticket.store} • {ticket.department}
+                          {ticket.company?.name || ticket.store} • {ticket.department}
                         </span>
                         <span className="hidden sm:inline">
                           Aberto em: {new Date(ticket.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -362,6 +351,106 @@ export default function TicketList() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Filter Modal */}
+      {showFilterModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Filter className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                Filtrar Chamados
+              </h3>
+              <button onClick={() => setShowFilterModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200"
+                >
+                  <option value="">Todos os Status</option>
+                  <option value="OPEN">Criado / Aberto</option>
+                  <option value="IN_PROGRESS">Em Atendimento</option>
+                  <option value="WAITING_USER">Aguardando Retorno</option>
+                  <option value="RESOLVED">Resolvido</option>
+                  <option value="CLOSED">Finalizado</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Prioridade</label>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200"
+                >
+                  <option value="">Todas Prioridades</option>
+                  <option value="LOW">Baixa</option>
+                  <option value="MEDIUM">Média</option>
+                  <option value="HIGH">Alta</option>
+                  <option value="URGENT">Urgente</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Categoria</label>
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200"
+                >
+                  <option value="">Todas Categorias</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Empresa / Unidade</label>
+                <select
+                  value={companyId}
+                  onChange={(e) => setCompanyId(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200"
+                >
+                  <option value="">Todas Empresas</option>
+                  {companies.map((comp) => (
+                    <option key={comp.id} value={comp.id}>{comp.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setStatus('');
+                  setPriority('');
+                  setCategoryId('');
+                  setCompanyId('');
+                }}
+                className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-semibold"
+              >
+                Limpar Filtros
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFilterModal(false)}
+                className="px-5 py-2 bg-sky-600 text-white rounded-xl text-xs font-semibold shadow-md shadow-sky-600/20 cursor-pointer"
+              >
+                Aplicar Filtros
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
