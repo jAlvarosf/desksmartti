@@ -22,6 +22,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import KanbanBoard from '../components/KanbanBoard';
 import ImageModal from '../components/ImageModal';
+import NewTicketModal from '../components/NewTicketModal';
 
 export default function TicketList() {
   const { user } = useAuth();
@@ -35,6 +36,7 @@ export default function TicketList() {
 
   // Preview file modal state
   const [previewFile, setPreviewFile] = useState(null);
+  const [showNewTicketModal, setShowNewTicketModal] = useState(false);
 
   // Search & Filter UI Expand states
   const [showSearchInput, setShowSearchInput] = useState(false);
@@ -142,6 +144,13 @@ export default function TicketList() {
         <ImageModal file={previewFile} onClose={() => setPreviewFile(null)} />
       )}
 
+      {/* New Ticket Overlay Modal */}
+      <NewTicketModal
+        isOpen={showNewTicketModal}
+        onClose={() => setShowNewTicketModal(false)}
+        onCreated={() => fetchTickets()}
+      />
+
       {/* Top Header & View Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div>
@@ -209,13 +218,13 @@ export default function TicketList() {
             </button>
           </div>
 
-          <Link
-            to="/tickets/new"
-            className="inline-flex items-center justify-center px-4 py-2.5 bg-sky-600 text-white font-semibold text-sm rounded-xl hover:bg-sky-700 shadow-md shadow-sky-600/20 transition-all shrink-0"
+          <button
+            onClick={() => setShowNewTicketModal(true)}
+            className="inline-flex items-center justify-center px-4 py-2.5 bg-sky-600 text-white font-semibold text-sm rounded-xl hover:bg-sky-700 shadow-md shadow-sky-600/20 transition-all shrink-0 cursor-pointer"
           >
             <PlusCircle className="w-5 h-5 mr-2" />
             Novo Chamado
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -273,13 +282,13 @@ export default function TicketList() {
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
                 Você não possui solicitações abertas com os filtros selecionados.
               </p>
-              <Link
-                to="/tickets/new"
-                className="inline-flex items-center mt-4 px-4 py-2 bg-sky-600 text-white text-sm font-semibold rounded-xl hover:bg-sky-700"
+              <button
+                onClick={() => setShowNewTicketModal(true)}
+                className="inline-flex items-center mt-4 px-4 py-2 bg-sky-600 text-white text-sm font-semibold rounded-xl hover:bg-sky-700 cursor-pointer"
               >
                 <PlusCircle className="w-4 h-4 mr-2" />
                 Abrir um Chamado Agora
-              </Link>
+              </button>
             </div>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
