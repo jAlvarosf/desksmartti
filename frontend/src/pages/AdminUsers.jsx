@@ -15,9 +15,11 @@ import {
   AlertCircle
 } from 'lucide-react';
 import api from '../services/api';
+import { DEFAULT_DEPARTMENTS } from '../constants/departments';
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -28,19 +30,24 @@ export default function AdminUsers() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
-  const [department, setDepartment] = useState('');
+  const [department, setDepartment] = useState(DEFAULT_DEPARTMENTS[0]);
   const [store, setStore] = useState('');
+  const [companyId, setCompanyId] = useState('');
   const [role, setRole] = useState('USER');
   const [active, setActive] = useState(true);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchUsers = async () => {
+  const fetchUsersAndCompanies = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/admin/users');
-      setUsers(res.data.users);
+      const [uRes, cRes] = await Promise.all([
+        api.get('/admin/users'),
+        api.get('/companies/public/companies').catch(() => ({ data: { companies: [] } }))
+      ]);
+      setUsers(uRes.data.users);
+      setCompanies(cRes.data.companies || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -49,7 +56,7 @@ export default function AdminUsers() {
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsersAndCompanies();
   }, []);
 
   const openCreateModal = () => {
@@ -58,8 +65,10 @@ export default function AdminUsers() {
     setEmail('');
     setPassword('');
     setPhone('');
-    setDepartment('Vendas');
-    setStore('Loja 01 - Centro');
+    setDepartment(DEFAULT_DEPARTMENTS[0]);
+    const defaultComp = companies.length > 0 ? companies[0] : null;
+    setCompanyId(defaultComp ? defaultComp.id : '');
+    setStore(defaultComp ? defaultComp.name : 'Matriz - Central');
     setRole('USER');
     setActive(true);
     setError('');
@@ -72,8 +81,9 @@ export default function AdminUsers() {
     setEmail(u.email);
     setPassword('');
     setPhone(u.phone);
-    setDepartment(u.department);
-    setStore(u.store);
+    setDepartment(u.department || DEFAULT_DEPARTMENTS[0]);
+    setCompanyId(u.companyId || (companies.length > 0 ? companies[0].id : ''));
+    setStore(u.company?.name || u.store || '');
     setRole(u.role);
     setActive(u.active);
     setError('');
@@ -86,6 +96,9 @@ export default function AdminUsers() {
     setError('');
 
     try {
+      const selectedComp = companies.find(c => c.id === companyId);
+      const targetStore = selectedComp ? selectedComp.name : store;
+
       if (editingUser) {
         // Edit user
         await api.patch(`/admin/users/${editingUser.id}`, {
@@ -93,7 +106,8 @@ export default function AdminUsers() {
           email,
           phone,
           department,
-          store,
+          store: targetStore,
+          companyId: companyId || null,
           role,
           active,
           password: password.trim() ? password : undefined
@@ -111,14 +125,15 @@ export default function AdminUsers() {
           password,
           phone,
           department,
-          store,
+          store: targetStore,
+          companyId: companyId || null,
           role,
           active
         });
       }
 
       setShowModal(false);
-      await fetchUsers();
+      await fetchUsersAndCompanies();
     } catch (err) {
       setError(err.response?.data?.error || 'Erro ao salvar informações do usuário.');
     } finally {
@@ -365,23 +380,42 @@ export default function AdminUsers() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Setor</label>
-                  <input
-                    type="text"
+                  <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Setor / Departamento</label>
+                  <select
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
                     className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white"
-                  />
+                  >
+                    {DEFAULT_DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Loja / Unidade</label>
-                  <input
-                    type="text"
-                    value={store}
-                    onChange={(e) => setStore(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white"
-                  />
+                  <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">Empresa / Unidade</label>
+                  {companies.length > 0 ? (
+                    <select
+                      value={companyId}
+                      onChange={(e) => {
+                        setCompanyId(e.target.value);
+                        const c = companies.find(comp => comp.id === e.target.value);
+                        if (c) setStore(c.name);
+                      }}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white"
+                    >
+                      {companies.map((comp) => (
+                        <option key={comp.id} value={comp.id}>{comp.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={store}
+                      onChange={(e) => setStore(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white"
+                    />
+                  )}
                 </div>
               </div>
 

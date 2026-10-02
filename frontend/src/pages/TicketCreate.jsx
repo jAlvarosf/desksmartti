@@ -15,12 +15,14 @@ import {
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { DEFAULT_DEPARTMENTS } from '../constants/departments';
 
 export default function TicketCreate() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [categories, setCategories] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -35,7 +37,7 @@ export default function TicketCreate() {
   const [requesterFullName, setRequesterFullName] = useState(user?.fullName || '');
   const [requesterEmail, setRequesterEmail] = useState(user?.email || '');
   const [requesterPhone, setRequesterPhone] = useState(user?.phone || '');
-  const [department, setDepartment] = useState(user?.department || '');
+  const [department, setDepartment] = useState(user?.department || DEFAULT_DEPARTMENTS[0]);
   const [store, setStore] = useState(user?.store || '');
 
   useEffect(() => {
@@ -47,6 +49,10 @@ export default function TicketCreate() {
         }
       })
       .catch((err) => console.error(err));
+
+    api.get('/companies/public/companies')
+      .then((res) => setCompanies(res.data.companies))
+      .catch(() => {});
   }, []);
 
   const handleFileChange = (e) => {
@@ -166,23 +172,38 @@ export default function TicketCreate() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Setor</label>
-                  <input
-                    type="text"
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Setor / Departamento</label>
+                  <select
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
                     className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
-                  />
+                  >
+                    {DEFAULT_DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Loja / Unidade</label>
-                  <input
-                    type="text"
-                    value={store}
-                    onChange={(e) => setStore(e.target.value)}
-                    className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
-                  />
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Empresa / Unidade</label>
+                  {companies.length > 0 ? (
+                    <select
+                      value={store}
+                      onChange={(e) => setStore(e.target.value)}
+                      className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
+                    >
+                      {companies.map((comp) => (
+                        <option key={comp.id} value={comp.name}>{comp.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={store}
+                      onChange={(e) => setStore(e.target.value)}
+                      className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
+                    />
+                  )}
                 </div>
               </div>
             ) : (

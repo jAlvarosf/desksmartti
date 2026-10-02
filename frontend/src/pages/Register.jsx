@@ -3,6 +3,7 @@ import { Headphones, Mail, Lock, User, Phone, Building, Store, ArrowRight, Alert
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { DEFAULT_DEPARTMENTS } from '../constants/departments';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -10,7 +11,7 @@ export default function Register() {
     email: '',
     password: '',
     phone: '',
-    department: 'Vendas',
+    department: DEFAULT_DEPARTMENTS[0],
     store: 'Matriz - Central',
     companyId: '',
     role: 'USER'
@@ -200,15 +201,18 @@ export default function Register() {
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                     <Building className="w-5 h-5" />
                   </div>
-                  <input
-                    type="text"
+                  <select
                     name="department"
-                    required
                     value={formData.department}
                     onChange={handleChange}
-                    placeholder="Ex: Financeiro, RH, Vendas"
                     className="block w-full pl-11 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
+                  >
+                    {DEFAULT_DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>

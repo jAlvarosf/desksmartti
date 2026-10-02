@@ -411,22 +411,23 @@ export default function TicketDetail() {
 
             {/* Comments List */}
             <div className="space-y-4 divide-y divide-slate-100 dark:divide-slate-800">
-              {ticket.comments.length === 0 ? (
+              {(ticket.comments || []).length === 0 ? (
                 <p className="text-sm text-slate-400 dark:text-slate-500 italic text-center py-4">Nenhuma resposta registrada até o momento.</p>
               ) : (
-                ticket.comments.map((comment) => {
+                (ticket.comments || []).map((comment) => {
                   const isAdminComment = comment.user?.role === 'ADMIN';
+                  const initial = comment.user?.fullName ? comment.user.fullName.charAt(0).toUpperCase() : 'U';
                   return (
-                    <div key={comment.id} className="pt-4 first:pt-0 space-y-2">
+                    <div key={comment.id || Math.random()} className="pt-4 first:pt-0 space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
                             isAdminComment ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
                           }`}>
-                            {comment.user?.fullName?.charAt(0).toUpperCase()}
+                            {initial}
                           </div>
                           <div>
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{comment.user?.fullName}</span>
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{comment.user?.fullName || 'Usuário'}</span>
                             {isAdminComment && (
                               <span className="ml-2 text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 px-1.5 py-0.5 rounded">
                                 Equipe de TI
@@ -435,7 +436,7 @@ export default function TicketDetail() {
                           </div>
                         </div>
                         <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                          {new Date(comment.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {comment.createdAt ? new Date(comment.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
                         </span>
                       </div>
 

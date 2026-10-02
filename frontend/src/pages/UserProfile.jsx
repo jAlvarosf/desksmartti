@@ -1,19 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Mail, Phone, Building, Store, Shield, CheckCircle2, AlertCircle, Save, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { DEFAULT_DEPARTMENTS } from '../constants/departments';
 
 export default function UserProfile() {
   const { user, updateUser } = useAuth();
 
   const [fullName, setFullName] = useState(user?.fullName || '');
   const [phone, setPhone] = useState(user?.phone || '');
-  const [department, setDepartment] = useState(user?.department || '');
+  const [department, setDepartment] = useState(user?.department || DEFAULT_DEPARTMENTS[0]);
   const [store, setStore] = useState(user?.store || '');
+  const [companies, setCompanies] = useState([]);
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.get('/companies/public/companies')
+      .then(res => setCompanies(res.data.companies))
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -112,26 +120,40 @@ export default function UserProfile() {
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
                 Setor / Departamento *
               </label>
-              <input
-                type="text"
-                required
+              <select
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white"
-              />
+              >
+                {DEFAULT_DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
             </div>
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                Loja / Unidade *
+                Empresa / Loja *
               </label>
-              <input
-                type="text"
-                required
-                value={store}
-                onChange={(e) => setStore(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white"
-              />
+              {companies.length > 0 ? (
+                <select
+                  value={store}
+                  onChange={(e) => setStore(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white"
+                >
+                  {companies.map((comp) => (
+                    <option key={comp.id} value={comp.name}>{comp.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  required
+                  value={store}
+                  onChange={(e) => setStore(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white"
+                />
+              )}
             </div>
           </div>
 
